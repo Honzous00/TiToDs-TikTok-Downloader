@@ -1,15 +1,40 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 from tiktok_downloader_core import download_tiktok, batch_download
+import os # Přidáno
+import sys # Přidáno
 
 class TikTokDownloaderApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("TikTok Downloader")
-        self.root.geometry("500x200")
+        self.root.title("TiToDs (TikTok Downloads)")
+        self.root.geometry("500x200") # Původní velikost
         self.root.resizable(False, False)
+
+        # --- Nastavení ikony okna ---
+        try:
+            # Použijeme funkci resource_path pro správné načítání cesty k souboru
+            # Funkce resource_path bude definována níže
+            icon_path = self.resource_path("icons/icon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+            else:
+                print(f"Upozornění: Soubor ikony nenalezen na cestě: {icon_path}")
+        except Exception as e:
+            print(f"Chyba při nastavení ikony okna: {e}")
         
         self.create_widgets()
+
+    # Tato funkce je nezbytná pro správnou práci s PyInstallerem
+    def resource_path(self, relative_path):
+        """
+        Získá absolutní cestu k souboru, funguje ve vývojovém režimu i po zabalení PyInstallerem.
+        """
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
     
     def create_widgets(self):
         # Hlavní kontejner
@@ -37,73 +62,52 @@ class TikTokDownloaderApp:
             command=self.switch_mode
         ).pack(side=tk.LEFT, padx=10)
 
-        # Frame pro obsah (bude obsahovat buď URL entry nebo text area)
-        self.content_frame = ttk.Frame(main_frame)
-        self.content_frame.pack(fill=tk.BOTH, expand=True, pady=2)
-
-        # Entry pro jedno video
-        self.url_frame = ttk.Frame(self.content_frame)
-        ttk.Label(self.url_frame, text="URL videa:").pack(side=tk.LEFT)
+        # URL Entry / Batch Text Area
+        self.url_frame = ttk.Frame(main_frame)
+        self.url_frame.pack(fill=tk.X, pady=5)
+        
+        self.url_label = ttk.Label(self.url_frame, text="URL TikTok videa:")
+        self.url_label.pack(side=tk.LEFT, padx=(0, 5))
+        
         self.url_entry = ttk.Entry(self.url_frame)
-        self.url_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-
-        # Text area pro více videí
-        self.text_area = scrolledtext.ScrolledText(
-            self.content_frame,
-            height=3,
-            wrap=tk.WORD,
-            font=('Tahoma', 9)
-        )
-
-        # Řádek s výstupní složkou (vždy pod obsahem)
-        self.output_frame = ttk.Frame(main_frame)
-        self.output_frame.pack(fill=tk.X, pady=5)
+        self.url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        ttk.Label(self.output_frame, text="Cílová složka:").pack(side=tk.LEFT)
-        self.output_var = tk.StringVar(value=".")
-        self.output_entry = ttk.Entry(self.output_frame, textvariable=self.output_var, state='readonly')
-        self.output_entry.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+        self.text_area = scrolledtext.ScrolledText(main_frame, height=5, width=40, wrap=tk.WORD)
         
-        self.select_dir_btn = ttk.Button(self.output_frame, text="📂", width=3, command=self.select_output_dir)
-        self.select_dir_btn.pack(side=tk.LEFT)
-
-        # Hlavní tlačítko (vždy pod výstupní složkou)
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(pady=10)
+        # Výběr výstupní složky
+        output_frame = ttk.Frame(main_frame)
+        output_frame.pack(fill=tk.X, pady=5)
         
-        self.download_btn = ttk.Button(
-            btn_frame, 
-            text="⬇️ Stáhnout video", 
-            command=self.start_download,
-            width=20
-        )
-        self.download_btn.pack()
+        ttk.Label(output_frame, text="Výstupní složka:").pack(side=tk.LEFT, padx=(0, 5))
+        self.output_var = tk.StringVar(value="")
+        self.output_entry = ttk.Entry(output_frame, textvariable=self.output_var)
+        self.output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(output_frame, text="Procházet", command=self.browse_output_dir).pack(side=tk.RIGHT, padx=5)
 
-        # Status (vždy dole)
-        self.status_var = tk.StringVar()
-        ttk.Label(main_frame, textvariable=self.status_var).pack()
+        # Tlačítko Stáhnout
+        download_button = ttk.Button(main_frame, text="Stáhnout", command=self.start_download)
+        download_button.pack(pady=10)
 
-        # Výchozí stav
-        self.switch_mode()
-    
+        # Stavový řádek
+        self.status_var = tk.StringVar(value="")
+        self.status_label = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
+        self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.switch_mode() # Initialize UI based on default mode
+
     def switch_mode(self):
-        """Přepíná mezi režimy"""
-        # Odstraníme všechny prvky z content_frame
-        for widget in self.content_frame.winfo_children():
-            widget.pack_forget()
-        
         if self.mode_var.get() == "single":
-            self.url_frame.pack(fill=tk.X)
-            self.download_btn.config(text="⬇️ Stáhnout video")
+            self.url_frame.pack(fill=tk.X, pady=5)
+            self.text_area.pack_forget()
         else:
-            self.text_area.pack(fill=tk.BOTH, expand=True)
-            self.download_btn.config(text="⬇️ Stáhnout vše")
-    
-    def select_output_dir(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.output_var.set(folder)
-    
+            self.url_frame.pack_forget()
+            self.text_area.pack(fill=tk.BOTH, expand=True, pady=5)
+
+    def browse_output_dir(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            self.output_var.set(directory)
+
     def start_download(self):
         if self.mode_var.get() == "single":
             self.download_single()
@@ -138,14 +142,19 @@ class TikTokDownloaderApp:
         results = batch_download(urls, self.output_var.get())
         success = sum(1 for r in results if r)
         
-        messagebox.showinfo(
-            "Výsledek", 
-            f"Staženo {success}/{len(urls)} videí!\n"
-            f"Chyby jsou v failed_downloads.log"
-        )
+        messagebox.showinfo("Dávkové stahování dokončeno", 
+                            f"Úspěšně staženo: {success}/{len(urls)} videí.\n"
+                            "Podrobnosti viz logy.")
         self.status_var.set("")
 
+
 if __name__ == "__main__":
+    try:
+        import yt_dlp
+    except ImportError:
+        print("yt-dlp není nainstalován. Prosím, nainstalujte ho pomocí 'pip install yt-dlp'")
+        sys.exit(1)
+
     root = tk.Tk()
     app = TikTokDownloaderApp(root)
     root.mainloop()
